@@ -1,11 +1,14 @@
 import 'dart:convert';
+import 'package:teledart/model.dart';
 import './telegram_service.dart';
 import './notifier.dart';
+import './reminder.dart';
+import './notifier_service.dart';
 
 class TelegramNotifier extends NotifierSetting {
   final String username;
-  //TelegramService service;
-  Object service;
+  // TelegramService service;
+  NotifierService service;
 
   TelegramNotifier(
     this.username,
@@ -46,11 +49,14 @@ class TelegramNotifier extends NotifierSetting {
     ];
   }
 
-
-  Future<bool> notifyUser() async {
+  Future<bool> notifyUser(Reminder reminder) async {
     // this.service .. 
     print('Calling Telegram!');
-    // telegram.sendMessage('@${this.username}');
-    
+    final result = await service.sendMessage(this.username, reminder.id, reminder.asString());
+    print('notified, result: $result');
+    if (result is Message) {
+      return true;
+    }
+    return false;
   }
 }

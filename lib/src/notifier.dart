@@ -1,5 +1,7 @@
 import 'dart:convert';
 import './telegram_notifier.dart';
+import './reminder.dart';
+import './notifier_service.dart';
 
 enum Engine  { Telegram, Twitter, Notification, Email }
 class Notifier {
@@ -39,7 +41,7 @@ class Notifier {
 // Base class for different Notifier variations
 abstract class NotifierSetting {
   final String name;
-  Object service;
+  NotifierService service;
 
   NotifierSetting(this.name);
 
@@ -70,7 +72,6 @@ abstract class NotifierSetting {
 
   List<Map> toFields(Map newNotifier);
   String toDisplay();
-//  Future<void> getUpdate();
-  Future<bool> notifyUser();
+  Future<bool> notifyUser(Reminder reminder);
 }
 
