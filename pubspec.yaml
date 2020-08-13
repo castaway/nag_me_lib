@@ -21,8 +21,8 @@ environment:
   sdk: ">=2.7.0 <3.0.0"
 
 dependencies:
-  teledart: ^0.0.46
-  safe_config: ^2.0.2
+  nag_me_services:
+    path: ../nag_me_services
 
 dev_dependencies:
   test: ^1.15.3

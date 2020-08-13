@@ -1,10 +1,10 @@
 import 'dart:convert';
+import 'package:nag_me_services/notifier_service.dart';
 import 'package:teledart/model.dart';
-import './telegram_service.dart';
 import './notifier.dart';
 import './reminder.dart';
-import './notifier_service.dart';
 
+// "implements"?
 class TelegramNotifier extends NotifierSetting {
   final String username;
   // TelegramService service;
@@ -13,7 +13,7 @@ class TelegramNotifier extends NotifierSetting {
   TelegramNotifier(
     this.username,
     [ service ]
-  ) : this.service = service != null ? service : TelegramService(), super('Telegram');
+  ) : this.service = service, super('Telegram');
 
   @override
   String toString() {

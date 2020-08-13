@@ -1,7 +1,7 @@
 import 'dart:convert';
+import 'package:nag_me_services/notifier_service.dart';
 import './telegram_notifier.dart';
 import './reminder.dart';
-import './notifier_service.dart';
 
 enum Engine  { Telegram, Twitter, Notification, Email }
 class Notifier {
