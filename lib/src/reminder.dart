@@ -30,8 +30,8 @@ class Reminder {
     }
   }
 
-  Reminder.fromFirebase(fbObj, owner_id) : this(
-    id: fbObj.id,
+  Reminder.fromFirebase(fbObj, id, owner_id) : this(
+    id: id,
     owner_id: owner_id,
     verb: fbObj['verb'],
     reminder_text: fbObj['reminder_text'],

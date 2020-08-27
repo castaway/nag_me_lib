@@ -1,9 +1,10 @@
 import 'dart:convert';
-import 'package:nag_me_services/notifier_service.dart';
+import './notifier_service.dart';
 import './telegram_notifier.dart';
+import './mobile_notifier.dart';
 import './reminder.dart';
 
-enum Engine  { Telegram, Twitter, Notification, Email }
+enum Engine  { Telegram, Twitter, Mobile, Email }
 class Notifier {
   final String owner_id;
   final Engine engine;
@@ -55,8 +56,8 @@ abstract class NotifierSetting {
       case Engine.Email:
         return null;
         break;
-      case Engine.Notification:
-        return null;
+      case Engine.Mobile:
+        return MobileNotifier(service);
         break;
       case Engine.Twitter:
         return null;

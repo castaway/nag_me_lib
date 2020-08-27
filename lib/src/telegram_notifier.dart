@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:nag_me_services/notifier_service.dart';
+import './notifier_service.dart';
 import 'package:teledart/model.dart';
 import './notifier.dart';
 import './reminder.dart';
