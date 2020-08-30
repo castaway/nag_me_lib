@@ -42,9 +42,10 @@ class Notifier {
 // Base class for different Notifier variations
 abstract class NotifierSetting {
   final String name;
+  final String username;
   NotifierService service;
 
-  NotifierSetting(this.name);
+  NotifierSetting(this.name, this.username);
 
   // Return the correct instance according to the chosen engine for this
   // notifier

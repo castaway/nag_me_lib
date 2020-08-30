@@ -8,12 +8,20 @@ import './config.dart';
 class TelegramService implements NotifierService {
   static TelegramConfig config() => TelegramConfig(Platform.script.resolve('telegram_config.yaml').toFilePath());
   final TeleDart teledart;
-  var waitingOnResponse = <String, Map<String,dynamic>>{};
-  var userMap = <String,int>{};
+  var userKeys = {};
+
+  var _waitingOnResponse = <String, Map<String,dynamic>>{};
+  var _incomingCommands = <String, List<String>>{};
+  var _userMap = <String,int>{};
 
   TelegramService(
   ) : teledart = TeleDart(Telegram(config().token), Event())
   ;
+
+  // for testing!?
+  set waitingOnResponse(Map val) => _waitingOnResponse = val;
+  Map<String, List<String>> get incomingCommands => _incomingCommands;
+  void clearCommands() =>  _incomingCommands = {};
 
   void start() {
     this.teledart.start().then((me) => print('${me.username} is initialised'));
@@ -21,31 +29,46 @@ class TelegramService implements NotifierService {
     this.teledart
     .onMessage(keyword: 'nagme')
     .listen((message) {
-        userMap[message.chat.username] = message.from.id;
+        _userMap[message.chat.username] = message.from.id;
         message.reply('Hello! ${message.chat.username}');
     });
     this.teledart
     .onMessage(keyword: 'yes')
     .listen((message) {
-      print('waiting: $waitingOnResponse');
-      if(waitingOnResponse.containsKey(message.chat.username)
-          && !waitingOnResponse[message.chat.username]['result']) {
-        waitingOnResponse[message.chat.username]['result'] = true;
+      print('waiting: $_waitingOnResponse');
+      if(_waitingOnResponse.containsKey(message.chat.username)
+          && !_waitingOnResponse[message.chat.username]['result']) {
+        _waitingOnResponse[message.chat.username]['result'] = true;
         message.reply('Well done!');
       }
     });
+
+    // all commands?
+    this.teledart
+    .onCommand()
+    .listen((message) {
+      var who = this.userKeys[message.chat.username];
+      print('incoming command for $who, ${message.text}');
+      _incomingCommands[who] ??= <String>[];
+      _incomingCommands[who].add(message.text);
+    });
   }
+
+  void stop() {
+    this.teledart.removeLongPolling();
+  }
+
 
   Map forFirebase() {
     return <String, dynamic>{
       'name': 'Telegram',
-      'data': {'userMap':userMap}
+      'data': {'userMap':_userMap}
     };
   }
 
   void fromFirebase(Map savedData) {
-    if(savedData.containsKey('userMap') && userMap.isEmpty) {
-      userMap = Map<String, int>.from(savedData['userMap']);
+    if(savedData.containsKey('userMap') && _userMap.isEmpty) {
+      _userMap = Map<String, int>.from(savedData['userMap']);
     }
   }
 
@@ -54,22 +77,27 @@ class TelegramService implements NotifierService {
   Future<Object> sendMessage(String username, String key, String message) async {
     // Add https://core.telegram.org/bots/api#inlinekeyboardmarkup ?
     // Do we need to store which reminder these are for in case of multiple?? - Probably
-    waitingOnResponse[username] = { 'key': key, 'result': false};
-    if(!userMap.containsKey(username)) {
+
+    // No key = just a response to a query, not a notification
+    if (key != null) {
+      _waitingOnResponse[username] = { 'key': key, 'result': false};
+    }
+    if(!_userMap.containsKey(username)) {
       print('No userid known for $username!');
       return null;
     }
-    Message msg = await this.teledart.telegram.sendMessage(userMap[username], message);
+    print('Sending message: $message, to $username');
+    Message msg = await this.teledart.telegram.sendMessage(_userMap[username], message);
     return msg;
   }
 
   List<dynamic> getFinishedTasks() {
-    Iterable<MapEntry> ime = waitingOnResponse.entries.where(
+    Iterable<MapEntry> ime = _waitingOnResponse.entries.where(
             (entry) => entry.value['result'] == true);
 
     List<dynamic> finished = ime.map( (e) => e.value['key']).toList();
 
-    waitingOnResponse.removeWhere((key, value) => value['result'] == true);
+    _waitingOnResponse.removeWhere((key, value) => value['result'] == true);
     return finished;
   }
 }

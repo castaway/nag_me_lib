@@ -7,19 +7,27 @@ import './config.dart';
 // Just needs to send, don't need to wait on responses etc
 class MobileService implements NotifierService {
   static MobileConfig config() => MobileConfig(Platform.script.resolve('mobile_config.yaml').toFilePath());
+  var _incomingCommands = {};
+  var userKeys = {};
+
   Firebase firebase;
   FCM fcm;
   Map userTokens = <String, String>{};
 
   MobileService(
   ) {
-      Firebase.initialize(config().fbProjectId, ServiceAccount.fromJson(config().serviceAccount))
-          .then((fb) => firebase = fb);
+      firebase = Firebase(config().fbProjectId, ServiceAccount.fromJson(config().serviceAccount));
   }
+  void clearCommands() => _incomingCommands = {};
 
   Future<void> start() async {
+    await firebase.init();
     fcm = FCM(firebase: firebase, fcmConfig: FCMConfig(firebase: firebase));
-    
+  }
+
+  void stop() {
+    firebase = null;
+    fcm = null;
   }
 
   Map forFirebase() {
@@ -56,4 +64,6 @@ class MobileService implements NotifierService {
   List<dynamic> getFinishedTasks() {
     return [];
   }
+
+  Map<String, List<String>> get incomingCommands => {};
 }

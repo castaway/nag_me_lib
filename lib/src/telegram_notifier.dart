@@ -6,14 +6,13 @@ import './reminder.dart';
 
 // "implements"?
 class TelegramNotifier extends NotifierSetting {
-  final String username;
   // TelegramService service;
   NotifierService service;
 
   TelegramNotifier(
-    this.username,
+    username,
     [ service ]
-  ) : this.service = service, super('Telegram');
+  ) : this.service = service, super('Telegram', username);
 
   @override
   String toString() {

@@ -9,7 +9,7 @@ class MobileNotifier extends NotifierSetting {
 
   MobileNotifier(
     [ service ]
-  ) : this.service = service, super('Mobile');
+  ) : this.service = service, super('Mobile', '');
 
   @override
   String toString() {
