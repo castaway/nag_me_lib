@@ -5,7 +5,7 @@ abstract class NotifierService {
 
   void start();
   void stop();
-  Future<Object> sendMessage(String username, String key, String message);
+  Future<Object> sendMessage(String username, String key, dynamic message);
   List<dynamic> getFinishedTasks();
   Map<String, List<String>> get incomingCommands;
   void clearCommands() => _incomingCommands = {};

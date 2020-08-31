@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:nag_me_lib/nag_me_services.dart';
+
 import './notifier_service.dart';
 import 'package:teledart/model.dart';
 import './notifier.dart';
@@ -7,7 +9,7 @@ import './reminder.dart';
 // "implements"?
 class TelegramNotifier extends NotifierSetting {
   // TelegramService service;
-  NotifierService service;
+  covariant TelegramService service;
 
   TelegramNotifier(
     username,
@@ -51,7 +53,8 @@ class TelegramNotifier extends NotifierSetting {
   Future<bool> notifyUser(Reminder reminder) async {
     // this.service .. 
     print('Calling Telegram!');
-    final result = await service.sendMessage(this.username, reminder.id, reminder.asString());
+    final buttons = service.makeSimpleButtons(['yes', 'no']);
+    final result = await service.sendMessage(this.username, reminder.id, { 'text': reminder.asString(), 'buttons': buttons });
     print('notified, result: $result');
     if (result is Message) {
       return true;

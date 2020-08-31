@@ -52,7 +52,7 @@ class MobileService implements NotifierService {
   }
 
   // chuck messages into the ether
-  Future<Object> sendMessage(String user_id, String key, String message) async {
+  Future<Object> sendMessage(String user_id, String key, dynamic message) async {
     final messageId = await fcm.send(Message(
         notification: MessageNotification(title: 'Nag Nag!', body: message),
         token: userTokens[user_id])
