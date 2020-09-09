@@ -65,5 +65,5 @@ class MobileService implements NotifierService {
     return [];
   }
 
-  Map<String, List<String>> get incomingCommands => {};
+  Map<String, List<Map>> get incomingCommands => {};
 }

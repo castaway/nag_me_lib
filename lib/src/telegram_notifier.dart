@@ -53,7 +53,7 @@ class TelegramNotifier extends NotifierSetting {
   Future<bool> notifyUser(Reminder reminder) async {
     // this.service .. 
     print('Calling Telegram!');
-    final buttons = service.makeSimpleButtons(['yes', 'no']);
+    final buttons = service.makeInlineButtons(names: ['yes', 'no'], key: reminder.id);
     final result = await service.sendMessage(this.username, reminder.id, { 'text': reminder.asString(), 'buttons': buttons });
     print('notified, result: $result');
     if (result is Message) {

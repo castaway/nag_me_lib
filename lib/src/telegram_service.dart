@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:teledart/teledart.dart';
 import 'package:teledart/telegram.dart';
 import 'package:teledart/model.dart';
@@ -11,15 +12,15 @@ class TelegramService implements NotifierService {
   final TeleDart teledart;
   var userKeys = {};
 
-  var _waitingOnResponse = <String, Map<String, dynamic>>{};
-  var _incomingCommands = <String, List<String>>{};
+  var _waitingOnResponse = <String, Map<String, Map<String, dynamic>>>{};
+  var _incomingCommands = <String, List<Map>>{};
   var _userMap = <String, int>{};
 
   TelegramService() : teledart = TeleDart(Telegram(config().token), Event());
 
   // for testing!?
   set waitingOnResponse(Map val) => _waitingOnResponse = val;
-  Map<String, List<String>> get incomingCommands => _incomingCommands;
+  Map<String, List<Map>> get incomingCommands => _incomingCommands;
   void clearCommands() => _incomingCommands = {};
 
   void start() {
@@ -29,12 +30,29 @@ class TelegramService implements NotifierService {
       _userMap[message.chat.username] = message.from.id;
       message.reply('Hello! ${message.chat.username}');
     });
-    this.teledart.onMessage(keyword: 'yes').listen((message) {
-      print('waiting: $_waitingOnResponse');
-      if (_waitingOnResponse.containsKey(message.chat.username) &&
-          !_waitingOnResponse[message.chat.username]['result']) {
-        _waitingOnResponse[message.chat.username]['result'] = true;
-        message.reply('Well done!');
+
+    this.teledart.onCommand('chatinfo').listen((message)  {
+      this.teledart.telegram.getChat(message.chat.id).then((chat) =>
+        print(chat.toJson()));
+    });
+
+    // inline button callbacks:
+    this.teledart.onCallbackQuery().listen((query) {
+      // callback data = '$key:$name'
+      var cbData = query.data.split(':');
+      if (_waitingOnResponse.containsKey(query.from.username) &&
+          _waitingOnResponse[query.from.username].containsKey(cbData[0]) &&
+          !_waitingOnResponse[query.from.username][cbData[0]]['result']) {
+        if (cbData[1] == 'yes') {
+          _waitingOnResponse[query.from.username][cbData[0]]['result'] = true;
+          this.teledart.telegram.answerCallbackQuery(
+              query.id, text: 'Well done!');
+//        this.teledart.telegram.sendMessage(
+//            _userMap[query.from.username], 'Well done!');
+        } else {
+          this.teledart.telegram.answerCallbackQuery(
+              query.id, text: 'I\'ll nag you again later');
+        }
       }
     });
 
@@ -42,8 +60,9 @@ class TelegramService implements NotifierService {
     this.teledart.onCommand().listen((message) {
       var who = this.userKeys[message.chat.username];
       print('incoming command for $who, ${message.text}');
-      _incomingCommands[who] ??= <String>[];
-      _incomingCommands[who].add(message.text);
+      _incomingCommands[who] ??= <Map<String, dynamic>>[];
+      var command = <String, dynamic>{'text': message.text, 'id': message.message_id};
+      _incomingCommands[who].add(command);
     });
   }
 
@@ -67,38 +86,57 @@ class TelegramService implements NotifierService {
   void fromUser(Map userData) {}
 
   // Message to user X
-  // key = the notification object id
+  // key = the reminder object id
   // message = String or with buttons
   Future<Object> sendMessage(
       String username, String key, dynamic message) async {
-    // Add https://core.telegram.org/bots/api#inlinekeyboardmarkup ?
-    // Do we need to store which reminder these are for in case of multiple?? - Probably
 
+    print('sendMessage: $username, $key, $message');
     // No key = just a response to a query, not a notification
     if (key != null) {
-      _waitingOnResponse[username] = {'key': key, 'result': false};
+      _waitingOnResponse[username] = {key: {'result': false}};
     }
     if (!_userMap.containsKey(username)) {
       print('No userid known for $username!');
       return null;
     }
-    final messageText = message is String ? message : message['text'];
-    final buttons = message is Map ? message['buttons'] : null;
+    var messageText;
+    var buttons;
+    if (message is Map) {
+      messageText = message['text'];
+      buttons = message['buttons'] ?? makeInlineButtons(names: message['create_buttons'], key: key);
+    } else {
+      messageText = message;
+    }
+
     print('Sending message: $messageText, to $username');
-    Message msg = await this
-        .teledart
-        .telegram
-        .sendMessage(_userMap[username], messageText, reply_markup: buttons);
+
+    Message msg;
+    try {
+      msg = await this
+          .teledart
+          .telegram
+          .sendMessage(_userMap[username], messageText, reply_markup: buttons);
+    } catch(e) {
+      print('sendMessage error!: $e');
+    }
+    _waitingOnResponse[username][key]['msg_id'] = msg.message_id;
     return msg;
   }
 
   List<dynamic> getFinishedTasks() {
-    Iterable<MapEntry> ime = _waitingOnResponse.entries
-        .where((entry) => entry.value['result'] == true);
+    List<dynamic> finished = [];
+    var userCopy = Map.from(_waitingOnResponse);
+    for (var user in userCopy.entries) {
+      var keyCopy = Map.from(user.value);
+      for(var key in keyCopy.entries) {
+        if (key.value['result']) {
+          finished.add(key.key);
+          _waitingOnResponse[user.key].remove(key.key);
+        }
+      }
+    }
 
-    List<dynamic> finished = ime.map((e) => e.value['key']).toList();
-
-    _waitingOnResponse.removeWhere((key, value) => value['result'] == true);
     return finished;
   }
 
@@ -106,8 +144,19 @@ class TelegramService implements NotifierService {
 
   // Basic one-line keyboard buttons (just sends back a response message)
   ReplyKeyboardMarkup makeSimpleButtons(List<String> names) {
-    return ReplyKeyboardMarkup(keyboard:
+    return ReplyKeyboardMarkup(
+      one_time_keyboard: true,
+        resize_keyboard: true,
+        keyboard:
         [names.map((name) => KeyboardButton(text: name)).toList()]);
   }
 
+  InlineKeyboardMarkup makeInlineButtons({ List<String> names, String key}) {
+    if(names.isEmpty) {
+      return null;
+    }
+    return InlineKeyboardMarkup(
+        inline_keyboard:
+        [names.map((name) => InlineKeyboardButton(text: name, callback_data: '$key:$name')).toList()]);
+  }
 }

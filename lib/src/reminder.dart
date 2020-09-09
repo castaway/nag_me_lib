@@ -56,10 +56,15 @@ class Reminder {
     print('Updated next_time: ${this.next_time}');
     this.next_time = this.next_time.add(Duration(days: 1));
     print('Updated next_time: ${this.next_time}');
+    return true;
   }
 
   String asString() {
     return 'Have you ${this.verb} your ${this.reminder_text}?';
+  }
+
+  String displayString() {
+    return '${this.asString()}\n\tDue: ${this.next_time.toString()}';
   }
 }
 

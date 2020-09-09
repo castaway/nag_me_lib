@@ -7,7 +7,7 @@ abstract class NotifierService {
   void stop();
   Future<Object> sendMessage(String username, String key, dynamic message);
   List<dynamic> getFinishedTasks();
-  Map<String, List<String>> get incomingCommands;
+  Map<String, List<Map>> get incomingCommands;
   void clearCommands() => _incomingCommands = {};
   Map forFirebase();
   void fromFirebase(Map savedData);
