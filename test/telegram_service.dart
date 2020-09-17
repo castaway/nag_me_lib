@@ -3,8 +3,8 @@ import 'package:test/test.dart';
 import '../lib/src/telegram_service.dart';
 
 main() {
-  group('telegram service', () {
-      var tgn = TelegramService();
+  group('telegram service', () async {
+      var tgn = await TelegramService.getInstance();
       test('Service has a teledart value', () {
           expect(tgn.teledart, isNot(null));
       });
@@ -13,8 +13,8 @@ main() {
         expect(tasks, isList);
       });
       test('Finished Tasks returns done items', () {
-        tgn.waitingOnResponse['fred'] = {'key':'freddy', 'result': false};
-        tgn.waitingOnResponse['john'] = {'key':'jonny', 'result': true};
+        tgn.waitingOnResponse = {'fred':{'key':'freddy', 'result': false},
+          'john':{'key':'jonny', 'result': true}};
         var tasks = tgn.getFinishedTasks();
         expect(tasks[0], equals('jonny'));
         expect(tasks.length, equals(1));

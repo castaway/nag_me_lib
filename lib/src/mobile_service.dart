@@ -1,22 +1,31 @@
-import 'dart:io';
+import 'dart:io' as io;
 import 'package:dartbase_admin/dartbase_admin.dart';
 import 'package:dartbase_admin/fcm/message.dart';
+import 'package:yaml_config/yaml_config.dart';
 import './notifier_service.dart';
-import './config.dart';
 
 // Just needs to send, don't need to wait on responses etc
 class MobileService implements NotifierService {
-  static MobileConfig config() => MobileConfig(Platform.script.resolve('mobile_config.yaml').toFilePath());
+  //static MobileConfig config() => MobileConfig(Platform.script.resolve('mobile_config.yaml').toFilePath());
+  static Future<MobileService> getInstance(Map callbacks) async {
+    final config = await YamlConfig.fromFile(
+        io.File(io.Platform.script.resolve('mobile_config.yaml').toFilePath()));
+    return MobileService(config, callbacks);
+  }
+
   var _incomingCommands = {};
   var userKeys = {};
+  final Map<String, Function> callbacks;
 
   Firebase firebase;
   FCM fcm;
   Map userTokens = <String, String>{};
 
   MobileService(
-  ) {
-      firebase = Firebase(config().fbProjectId, ServiceAccount.fromJson(config().serviceAccount));
+      YamlConfig config, Map callbacks
+  ) : callbacks = callbacks {
+      firebase = Firebase(config.getString('fbProjectId'),
+          ServiceAccount.fromJson(config.getString('serviceAccount')));
   }
   void clearCommands() => _incomingCommands = {};
 

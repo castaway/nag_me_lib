@@ -22,8 +22,9 @@ environment:
 
 dependencies:
   teledart: ^0.0.46
-  safe_config: ^2.0.2
   dartbase_admin: ^0.1.4
+  yaml_config: ^0.1.2
+#  safe_config: ^2.0.2
 
 dev_dependencies:
   test: ^1.15.3
