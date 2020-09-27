@@ -5,6 +5,7 @@ import 'package:teledart/telegram.dart';
 import 'package:teledart/model.dart';
 import 'package:yaml_config/yaml_config.dart';
 import './notifier_service.dart';
+import './reminder.dart';
 
 class TelegramService implements NotifierService {
   // static TelegramConfig config() => TelegramConfig(
@@ -53,29 +54,29 @@ class TelegramService implements NotifierService {
     this.teledart.onCallbackQuery().listen((query) {
       // callback data = '$key:$name'
       var cbData = query.data.split(':');
+      // Response (yes/no) to a task being finished
+      // yes = move reminder time to next day, end scheduler, notify
+      // no = notify, nothing else (will re-poke in 30mins)
+      // remove waitingOn entry (new one created next sendMessage)
       if (_waitingOnResponse.containsKey(query.from.username) &&
           _waitingOnResponse[query.from.username].containsKey(cbData[0]) &&
           !_waitingOnResponse[query.from.username][cbData[0]]
               .containsKey('result')) {
         if (cbData[1] == 'yes') {
-          _waitingOnResponse[query.from.username][cbData[0]]['result'] = true;
           this.teledart.telegram.answerCallbackQuery(query.id);
           this
               .teledart
               .telegram
               .sendMessage(_userMap[query.from.username], 'Well done!');
+          this.callbacks['finish_task'](
+              userKeys[query.from.username], cbData[0]);
         } else {
-          _waitingOnResponse[query.from.username][cbData[0]]['result'] = false;
           this.teledart.telegram.answerCallbackQuery(query.id);
           this.teledart.telegram.sendMessage(
               _userMap[query.from.username], 'I\'ll nag you again later');
         }
-      }
-      if (cbData[1].startsWith('/edit')) {
-        print('incoming command for ${query.from.username}, ${cbData[1]}');
-        _incomingCommands[query.from.username] ??= <Map<String, dynamic>>[];
-        var command = <String, dynamic>{'text': cbData[1], 'id': query.id};
-        _incomingCommands[query.from.username].add(command);
+        // remove this either way, new sendMessage will create another
+        _waitingOnResponse[query.from.username].remove(cbData[0]);
       }
     });
 
@@ -85,16 +86,38 @@ class TelegramService implements NotifierService {
       if (message.text == '/reminders') {
         print('reminders requested');
         final cb = this.callbacks['reminder_list'];
-        final reminderStr = cb('Engine.Telegram', who);
+        final reminders = cb('Engine.Telegram', who);
         //var testStr = reminderStr();
 
         int counter = 1;
-        Map reminderList = {
-          'text': reminderStr,
-          'create_buttons':
-              List.generate(counter++, (index) => '/edit ${index + 1}'),
-        };
-        this.sendMessage(message.chat.username, message.message_id.toString(), reminderList);
+        // print(reminders[0].asEditString());
+        String reminderStr = reminders
+            .map((reminder) =>
+                '${counter}: ${reminder.displayString()}\n*/edit reminder ${counter++} ${reminder.asEditString()}*')
+            .join('\n');
+        this.sendMessage(message.chat.username, null, reminderStr);
+      } else if (message.text.startsWith('/edit reminder')) {
+        var matchRE =
+            RegExp(r'/(add|edit) reminder\s*(?<index>\d+)?\s+(?<updateStr>[\w\s;:-]+)');
+        if (matchRE.hasMatch(message.text)) {
+          final cb = this.callbacks['reminder_list'];
+          final reminders = cb('Engine.Telegram', who);
+          var match = matchRE.firstMatch(message.text);
+          var newReminder;
+          if (match.namedGroup('index') != null) {
+            var index = int.parse(match.namedGroup('index')) - 1;
+//          print('matches: $index, ${match.namedGroup('updateStr')}');
+            newReminder = reminders[index]
+                .updateFromString(match.namedGroup('updateStr'));
+            reminders[index] = newReminder;
+          } else {
+            newReminder = Reminder.newFromString(match.namedGroup('updateStr'), who);
+            reminders.add(newReminder);
+          }
+            this.callbacks['update_reminders'](reminders);
+            this.sendMessage(message.chat.username, null,
+                'Updated: ${newReminder.displayString()}');
+        }
       }
       // print('incoming command for $who, ${message.text}');
       // _incomingCommands[who] ??= <Map<String, dynamic>>[];
@@ -133,9 +156,7 @@ class TelegramService implements NotifierService {
     print('sendMessage: $username, $key, $message');
     // No key = just a response to a query, not a notification
     if (key != null) {
-      _waitingOnResponse[username] = {
-        key: {}
-      };
+      _waitingOnResponse[username] = {key: {}};
     }
     if (!_userMap.containsKey(username)) {
       print('No userid known for $username!');
@@ -151,18 +172,20 @@ class TelegramService implements NotifierService {
       messageText = message;
     }
 
-    print('Sending message: $messageText, to $username');
+    print(
+        'Sending message (${messageText.length}): $messageText, to $username');
 
     Message msg;
     try {
-      msg = await this
-          .teledart
-          .telegram
-          .sendMessage(_userMap[username], messageText, reply_markup: buttons);
-    } catch (e) {
-      print('sendMessage error!: $e');
+      msg = await this.teledart.telegram.sendMessage(
+          _userMap[username], messageText,
+          reply_markup: buttons, parse_mode: 'Markdown');
+    } catch (e, s) {
+      print('sendMessage error!: $e\n$s');
     }
-    _waitingOnResponse[username][key]['msg_id'] = msg.message_id;
+    if (key != null) {
+      _waitingOnResponse[username][key]['msg_id'] = msg.message_id;
+    }
     return msg;
   }
 

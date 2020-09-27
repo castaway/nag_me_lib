@@ -24,6 +24,7 @@ dependencies:
   teledart: ^0.0.46
   dartbase_admin: ^0.1.4
   yaml_config: ^0.1.2
+  intl: ^0.16.1
 #  safe_config: ^2.0.2
 
 dev_dependencies:
