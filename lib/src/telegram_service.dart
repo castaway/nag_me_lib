@@ -17,11 +17,13 @@ class TelegramService implements NotifierService {
   }
 
   final TeleDart teledart;
+  // telegram username => firebase user id
   var userKeys = {};
   final Map<String, Function> callbacks;
 
   var _waitingOnResponse = <String, Map<String, Map<String, dynamic>>>{};
   var _incomingCommands = <String, List<Map>>{};
+  // telegram username => telegram chat id
   var _userMap = <String, int>{};
 
   TelegramService(YamlConfig config, Map callbacks)
@@ -39,7 +41,14 @@ class TelegramService implements NotifierService {
 
     this.teledart.onMessage(keyword: 'nagme').listen((message) {
       _userMap[message.chat.username] = message.from.id;
-      message.reply('Hello! ${message.chat.username}');
+      var checkUser = this.callbacks['check_user'];
+      // Anyone got this telegram username saved in a notifier? If no then
+      // explain how to create a new user:
+      if (!checkUser('Engine.Telegram', message.chat.username)) {
+        message.reply('To sign up a new Nag Me account, send me this command:\n/createaccount <email address> <password>\n\nIf preferred you can instead use the initial Android release from: https://github.com/castaway/nag_me_mobile/releases/');
+      } else {
+        message.reply('Hello! ${message.chat.username}');
+      }
     });
 
     this.teledart.onCommand('chatinfo').listen((message) {
@@ -53,6 +62,8 @@ class TelegramService implements NotifierService {
     // inline button callbacks:
     this.teledart.onCallbackQuery().listen((query) {
       // callback data = '$key:$name'
+      print('${query.data}');
+      print('${_waitingOnResponse}');
       var cbData = query.data.split(':');
       // Response (yes/no) to a task being finished
       // yes = move reminder time to next day, end scheduler, notify
@@ -118,6 +129,24 @@ class TelegramService implements NotifierService {
             this.callbacks['update_reminders'](reminders);
             this.sendMessage(message.chat.username, null,
                 'Updated: ${newReminder.displayString()}');
+        }
+      } else if (message.text.startsWith('/createaccount')) {
+        // createaccount <email> <password>
+        var matchRE = RegExp(r'/createaccount (?<email>\S+)\s(?<password>\S+)$');
+        if (matchRE.hasMatch(message.text)) {
+          print('createaccount matches');
+          var match = matchRE.firstMatch(message.text);
+          final cb  = this.callbacks['create_user'];
+          cb('Engine.Telegram', message.chat.username,
+              { 'email':match.namedGroup('email'), 'password': match.namedGroup('password') }).then((result) {
+            if (result) {
+              print('createaccount created a user');
+              _userMap[message.chat.username] = message.from.id;
+              message.reply('You\'re all setup! Use **/add reminder <verb>;<reminder text>;<start timestamp>** to create a reminder');
+            } else {
+              message.reply('Something went wrong there, are you sure that was a valid email address?');
+            }
+          });
         }
       }
       // print('incoming command for $who, ${message.text}');
