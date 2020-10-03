@@ -93,12 +93,13 @@ class TelegramService implements NotifierService {
         // print(reminders[0].asEditString());
         String reminderStr = reminders
             .map((reminder) =>
-                '${counter}: ${reminder.displayString()}\n*/edit reminder ${counter++} ${reminder.asEditString()}*')
+                '${counter}: ${reminder.displayString()}\n*/edit reminder ${counter++} ${reminder.asEditString()}* (UTC)')
             .join('\n');
         this.sendMessage(message.chat.username, null, reminderStr);
-      } else if (message.text.startsWith('/edit reminder')) {
+      } else if (message.text.startsWith('/edit reminder') ||
+          message.text.startsWith('/add reminder')) {
         var matchRE =
-            RegExp(r'/(add|edit) reminder\s*(?<index>\d+)?\s+(?<updateStr>[\w\s;:-]+)');
+            RegExp(r'/(add|edit) reminder\s*(?<index>\d+)?\s+(?<updateStr>[\w\s;:.-]+)');
         if (matchRE.hasMatch(message.text)) {
           final cb = this.callbacks['reminder_list'];
           final reminders = cb('Engine.Telegram', who);
@@ -111,7 +112,7 @@ class TelegramService implements NotifierService {
                 .updateFromString(match.namedGroup('updateStr'));
             reminders[index] = newReminder;
           } else {
-            newReminder = Reminder.newFromString(match.namedGroup('updateStr'), who);
+            newReminder = Reminder.newFromString(match.namedGroup('updateStr'), null, who);
             reminders.add(newReminder);
           }
             this.callbacks['update_reminders'](reminders);
@@ -155,8 +156,11 @@ class TelegramService implements NotifierService {
       String username, String key, dynamic message) async {
     print('sendMessage: $username, $key, $message');
     // No key = just a response to a query, not a notification
+    if (!_waitingOnResponse.containsKey(username)) {
+      _waitingOnResponse[username] = {};
+    }
     if (key != null) {
-      _waitingOnResponse[username] = {key: {}};
+      _waitingOnResponse[username][key] =  {};
     }
     if (!_userMap.containsKey(username)) {
       print('No userid known for $username!');

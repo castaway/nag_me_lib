@@ -34,7 +34,7 @@ class Notifier {
         jsonDecode(fbObj['settings']),
         service
       ),
-      last_modified: DateTime.parse(fbObj['last_modified']),
+      last_modified: fbObj['last_modified'] != null ? DateTime.parse(fbObj['last_modified']) : null,
     );
   }
 }

@@ -1,7 +1,6 @@
 import 'package:intl/intl.dart';
-import 'package:nag_me_lib/nag_me.dart';
 
-enum ReminderStatus { created, running, waiting }
+enum ReminderStatus { created, running, waiting, off }
 
 class Reminder {
   final String id;
@@ -16,7 +15,7 @@ class Reminder {
   };
   final String regularity;
   final NagTimeOfDay start_time;
-  DateTime next_time;
+  DateTime last_time;
   ReminderStatus status;
 
   Reminder({
@@ -26,14 +25,15 @@ class Reminder {
     this.reminder_text,
     this.regularity,
     this.start_time,
-    this.next_time,
+    this.last_time,
     this.status = ReminderStatus.created,
   }) {
-    if (this.next_time == null) {
+    if (this.last_time == null) {
       var now = DateTime.now();
-      this.next_time = new DateTime(now.year, now.month, now.day,
-              this.start_time.hour, this.start_time.minute)
-          .toUtc();
+      // Yesterday at midnight given, so if time is today in future it will run today
+      this.last_time = new DateTime(now.year, now.month, now.day,
+              0, 1)
+          .subtract(Duration(days: 1)).toUtc();
     }
   }
 
@@ -49,7 +49,7 @@ class Reminder {
       start_time: NagTimeOfDay(
           hour: fbObj['start_time']['hour'],
           minute: fbObj['start_time']['minute']),
-      next_time: DateTime.parse(fbObj['next_time']).toUtc(),
+      last_time: DateTime.parse(fbObj['last_time']).toUtc(),
       status: status ?? ReminderStatus.created,
     );
   }
@@ -64,17 +64,28 @@ class Reminder {
         'hour': start_time.hour,
         'minute': start_time.minute
       },
-      'next_time': next_time.toIso8601String(),
+      'last_time': last_time.toIso8601String(),
       'status': status.index
     };
   }
 
+  // Calcualtion = 1 time period after the last day we did it, at the time we want to start it
+  // Service will now start if anywhen after this (in case of missed ones / service crashes etc)
+  DateTime get next_time {
+    return DateTime(this.last_time.year, this.last_time.month, this.last_time.day,
+        this.start_time.hour, this.start_time.minute).add(Duration(days: 1)).toUtc();
+  }
+
   // Update the next_time (and save it!?)
   bool taskDone() {
-    print('Updated next_time: ${this.next_time}');
-    this.next_time = this.next_time.add(Duration(days: 1));
+    print('Updated last_time: ${this.last_time}');
+    final now = DateTime.now();
+    this.last_time = DateTime(now.year, now.month, now.day,
+        this.start_time.hour, this.start_time.minute ).toUtc();
+//    this.start_time.hour, this.start_time.minute).toUtc(); //this.next_time.add(Duration(days: 1));
     this.status = ReminderStatus.waiting;
-    print('Updated next_time: ${this.next_time}');
+    print('Updated last_time: ${this.last_time}');
+    print('Next time: ${this.next_time}');
     return true;
   }
 
@@ -87,47 +98,31 @@ class Reminder {
   }
 
   String asEditString() {
-    return '${this.verb};${this.reminder_text};${DateFormat('yyyy-MM-dd HH:mm').format(this.next_time)}';
+    return '${this.verb};${this.reminder_text};${this.status.toString()};${this.start_time.toString()}';
   }
 
   Reminder updateFromString(String updateStr) {
-    var values = updateStr.split(';');
-    print(updateStr);
-    if (values.length < 3) {
-      print('Edit reminder had incorrect parameters: $updateStr');
-      return this;
-    }
-    print(values);
-    return Reminder(
-      id: this.id,
-      owner_id: this.owner_id,
-      verb: values[0],
-      reminder_text: values[1],
-      regularity: this.regularity,
-      start_time: this.start_time,
-      next_time: DateTime.parse(values[2]).toUtc(),
-    );
+    return Reminder.newFromString(updateStr, this.id, this.owner_id, this);
   }
 
-  static Reminder newFromString(String newStr, String ownerId) {
+  static Reminder newFromString(String newStr, String id, String ownerId, [Reminder old]) {
     var values = newStr.split(';');
-    print(newStr);
-    // FIXME: Exception?
-    // if (values.length < 3) {
-    //   print('Edit reminder had incorrect parameters: $newStr');
-    //   return this;
-    // }
-    print(values);
+    if (values.length < 4) {
+      print('Edit reminder had incorrect parameters: $newStr');
+      return old;
+    }
 
-    var nextTime = DateTime.parse(values[2]).toUtc();
+    print(values);
+    ReminderStatus status = ReminderStatus.values.firstWhere((val) => val.toString() == values[2]);
+    var newTime = NagTimeOfDay.parse(values[3]);
     return Reminder(
-      id: null,
+      id: id,
       owner_id: ownerId,
       verb: values[0],
       reminder_text: values[1],
       regularity: 'daily',
-      start_time: NagTimeOfDay(hour: nextTime.hour, minute: nextTime.minute),
-      next_time: nextTime,
+      start_time: newTime,
+      status: status,
     );
   }
 }
@@ -138,4 +133,17 @@ class NagTimeOfDay {
   final num minute;
 
   NagTimeOfDay({this.hour, this.minute});
+
+   factory NagTimeOfDay.parse(String input) {
+    var matchRE = RegExp(r'(?<hour>\d{1,2}):(?<minute>\d{1,2})');
+    if (matchRE.hasMatch(input)) {
+      var match = matchRE.firstMatch(input);
+      return NagTimeOfDay(hour: int.parse(match.namedGroup('hour')), minute: int.parse(match.namedGroup('minute')));
+    }
+    return null;
+  }
+
+  String toString() {
+     return '${this.hour.toString().padLeft(2, '0')}:${this.minute.toString().padLeft(2, '0')}';
+  }
 }
